@@ -2,14 +2,17 @@ from flask import Flask, request, jsonify
 import json, random, string, smtplib, hmac, hashlib
 from email.mime.text import MIMEText
 import requests
+from pydrive2.auth import GoogleAuth
+from pydrive2.drive import GoogleDrive
 
 app = Flask(__name__)
 
 # Razorpay webhook secret
 RAZORPAY_SECRET = "messiisthegoat"
 
-# Google Drive keys.json public download URL
+# Google Drive keys.json public download URL and File ID
 KEYS_URL = "https://drive.google.com/uc?export=download&id=1iDyBB5lTaXcR5TYLVYc8XAFCHwVwRrJH"
+DRIVE_FILE_ID = "1iDyBB5lTaXcR5TYLVYc8XAFCHwVwRrJH"
 KEYS_FILE = "keys.json"
 
 # Gmail setup
@@ -52,6 +55,19 @@ def load_keys():
 def save_keys(keys):
     with open(KEYS_FILE, "w") as f:
         json.dump(keys, f, indent=2)
+
+def upload_keys_to_drive():
+    try:
+        gauth = GoogleAuth()
+        gauth.LocalWebserverAuth()
+        drive = GoogleDrive(gauth)
+
+        file = drive.CreateFile({'id': DRIVE_FILE_ID})
+        file.SetContentFile(KEYS_FILE)
+        file.Upload()
+        print("✅ keys.json uploaded to Google Drive.")
+    except Exception as e:
+        print(f"❌ Upload to Drive failed: {e}")
 
 def send_email(to_email, key, uses):
     subject = "🎟️ Your Dream11 Predictor Access Key"
@@ -119,6 +135,7 @@ def webhook():
     key = generate_unique_key(keys)
     keys[key] = {"email": email, "uses_left": uses}
     save_keys(keys)
+    upload_keys_to_drive()
 
     send_email(email, key, uses)
     return jsonify({"message": "Key generated and emailed", "key": key}), 200
