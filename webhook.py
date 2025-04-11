@@ -1,5 +1,5 @@
 from flask import Flask, request, jsonify
-import json, random, string, smtplib, hmac, hashlib
+import json, random, string, smtplib, hmac, hashlib, os
 from email.mime.text import MIMEText
 import requests
 from pydrive2.auth import GoogleAuth
@@ -10,16 +10,16 @@ app = Flask(__name__)
 # Razorpay webhook secret
 RAZORPAY_SECRET = "messiisthegoat"
 
-# Google Drive keys.json public download URL and File ID
+# Drive file details
 KEYS_URL = "https://drive.google.com/uc?export=download&id=1iDyBB5lTaXcR5TYLVYc8XAFCHwVwRrJH"
 DRIVE_FILE_ID = "1iDyBB5lTaXcR5TYLVYc8XAFCHwVwRrJH"
 KEYS_FILE = "keys.json"
 
-# Gmail setup
+# Gmail SMTP
 GMAIL_USER = "dream11predictorai@gmail.com"
 GMAIL_PASSWORD = "yxrt jion rmix ltmt"  # App password
 
-# Price-to-uses mapping
+# Pricing mapping
 PRICE_MAP = {
     9: 2,
     27: 5,
@@ -28,7 +28,7 @@ PRICE_MAP = {
     247: 100
 }
 
-# ----------------- Utilities -----------------
+# ------------------- UTILITIES -------------------
 
 def generate_unique_key(existing_keys, length=8):
     while True:
@@ -38,10 +38,13 @@ def generate_unique_key(existing_keys, length=8):
 
 def download_keys():
     try:
+        if os.path.exists(KEYS_FILE):
+            os.remove(KEYS_FILE)  # force fresh download
         r = requests.get(KEYS_URL)
         if r.status_code == 200:
             with open(KEYS_FILE, "w") as f:
                 f.write(r.text)
+            print("⬇️ keys.json downloaded.")
     except Exception as e:
         print(f"⚠️ Error downloading keys.json: {e}")
 
@@ -59,17 +62,17 @@ def save_keys(keys):
 def upload_keys_to_drive():
     try:
         gauth = GoogleAuth()
-        gauth.settings['client_config_file'] = 'service_account.json'
+        gauth.settings['client_config_file'] = 'service_account.json'  # Must exist
         gauth.ServiceAuth()
         drive = GoogleDrive(gauth)
 
         file = drive.CreateFile({'id': DRIVE_FILE_ID})
         file.SetContentFile(KEYS_FILE)
         file.Upload()
+
         print("✅ keys.json uploaded to Google Drive.")
     except Exception as e:
         print(f"❌ Upload to Drive failed: {e}")
-
 
 def send_email(to_email, key, uses):
     subject = "🎟️ Your Dream11 Predictor Access Key"
@@ -95,18 +98,17 @@ Enter this in the app to unlock predictions. Good luck! 🏏
         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
             server.login(GMAIL_USER, GMAIL_PASSWORD)
             server.sendmail(GMAIL_USER, to_email, msg.as_string())
-        print(f"✅ Email sent to {to_email}")
+        print(f"📧 Email sent to {to_email}")
     except Exception as e:
         print(f"❌ Failed to send email: {e}")
 
-# ----------------- Webhook Route -----------------
+# ------------------- WEBHOOK ROUTES -------------------
 
 @app.route("/webhook", methods=["POST"])
 def webhook():
     payload = request.data
     signature = request.headers.get("X-Razorpay-Signature")
 
-    # Validate signature
     generated = hmac.new(
         RAZORPAY_SECRET.encode(),
         msg=payload,
@@ -116,9 +118,9 @@ def webhook():
     if not hmac.compare_digest(generated, signature):
         return jsonify({"error": "❌ Invalid signature"}), 403
 
-    # Parse verified payload
+    # Verified payload
     data = json.loads(payload)
-    print("✅ Webhook verified:", data)
+    print("✅ Webhook verified")
 
     try:
         payment = data["payload"]["payment"]["entity"]
@@ -139,7 +141,9 @@ def webhook():
     save_keys(keys)
     upload_keys_to_drive()
 
+    print(f"🔐 New key created: {key}")
     send_email(email, key, uses)
+
     return jsonify({"message": "Key generated and emailed", "key": key}), 200
 
 @app.route("/update-key", methods=["POST"])
@@ -162,8 +166,7 @@ def update_key():
     else:
         return jsonify({"error": "Key not found"}), 404
 
-
-# ----------------- Run Server -----------------
+# ------------------- RUN SERVER -------------------
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
