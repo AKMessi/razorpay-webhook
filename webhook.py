@@ -140,6 +140,27 @@ def webhook():
     send_email(email, key, uses)
     return jsonify({"message": "Key generated and emailed", "key": key}), 200
 
+@app.route("/update-key", methods=["POST"])
+def update_key():
+    data = request.get_json()
+    if data.get("secret") != RAZORPAY_SECRET:
+        return jsonify({"error": "Unauthorized"}), 403
+
+    key = data.get("key")
+    new_uses = data.get("uses_left")
+
+    download_keys()
+    keys = load_keys()
+
+    if key in keys:
+        keys[key]["uses_left"] = new_uses
+        save_keys(keys)
+        upload_keys_to_drive()
+        return jsonify({"message": "Key updated"}), 200
+    else:
+        return jsonify({"error": "Key not found"}), 404
+
+
 # ----------------- Run Server -----------------
 
 if __name__ == "__main__":
