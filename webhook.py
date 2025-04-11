@@ -59,7 +59,8 @@ def save_keys(keys):
 def upload_keys_to_drive():
     try:
         gauth = GoogleAuth()
-        gauth.LocalWebserverAuth()
+        gauth.settings['client_config_file'] = 'service_account.json'
+        gauth.ServiceAuth()
         drive = GoogleDrive(gauth)
 
         file = drive.CreateFile({'id': DRIVE_FILE_ID})
@@ -68,6 +69,7 @@ def upload_keys_to_drive():
         print("✅ keys.json uploaded to Google Drive.")
     except Exception as e:
         print(f"❌ Upload to Drive failed: {e}")
+
 
 def send_email(to_email, key, uses):
     subject = "🎟️ Your Dream11 Predictor Access Key"
