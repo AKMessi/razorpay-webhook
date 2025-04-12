@@ -11,7 +11,7 @@ app = Flask(__name__)
 RAZORPAY_SECRET = "messiisthegoat"
 
 # Drive file details
-KEYS_URL = "https://drive.google.com/uc?export=download&id=1iDyBB5lTaXcR5TYLVYc8XAFCHwVwRrJH"
+
 DRIVE_FILE_ID = "1iDyBB5lTaXcR5TYLVYc8XAFCHwVwRrJH"
 KEYS_FILE = "keys.json"
 
@@ -133,7 +133,8 @@ def webhook():
     if not uses:
         return jsonify({"error": "Unsupported amount"}), 400
 
-    download_keys()
+    if not os.path.exists(KEYS_FILE):
+        save_keys({})
     keys = load_keys()
 
     key = generate_unique_key(keys)
@@ -155,7 +156,8 @@ def update_key():
     key = data.get("key")
     new_uses = data.get("uses_left")
 
-    download_keys()
+    if not os.path.exists(KEYS_FILE):
+        save_keys({})
     keys = load_keys()
 
     if key in keys:
@@ -165,6 +167,19 @@ def update_key():
         return jsonify({"message": "Key updated"}), 200
     else:
         return jsonify({"error": "Key not found"}), 404
+    
+
+@app.route("/keys", methods=["GET"])
+def serve_keys():
+    try:
+          # Ensure latest keys from Drive
+        if not os.path.exists(KEYS_FILE):
+            save_keys({})
+        keys = load_keys()
+        return jsonify(keys)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 
 # ------------------- RUN SERVER -------------------
 
